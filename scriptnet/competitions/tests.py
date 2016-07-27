@@ -2,13 +2,27 @@ from django.test import TestCase
 from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import IntegrityError
 
 from .models import Affiliation, Competition, Individual
 from .models import Track, Subtrack
 
 from .evaluators import cmdline
-from .evaluators import icfhr14_kws_tool
+from .evaluators import icfhr14_kws_tool, transkribusBaseLineMetricTool
 
+def create_new_user():
+    user = User.objects.create_user(
+        username='sampleuser',
+        password='mypassword',
+        email='a@a.gr',
+        first_name='John',
+        last_name='Doe',
+        )
+    affiliation = Affiliation.objects.create(name='John Does university')
+    user.individual.shortbio = 'This is the story of my life'
+    user.individual.affiliations.add(affiliation)
+    user.individual.save()
+    return user
 
 def create_competitions_tracks_subtracks(
         num_comps, 
@@ -279,20 +293,58 @@ class EvaluatorTests(TestCase):
             'ndcg-binary': '0.6817'
             }
         )
+    def test_transkribusBaseLineMetricTool(self):
+        res = transkribusBaseLineMetricTool()
+        self.assertEqual(res, {
+                'bl-avg-precision': '0.744',
+                'bl-avg-recall': '0.7586',
+                'bl-avg-fmeasure': '0.7512',
+            }
+        )
 
 class AuthenticationTests(TestCase):
+    """
+    Here, register and login using the backend solely.
+    In this sense, these tests are complementary with FormTests
+    that should test register, login and submit on the frontend.
+    """
+    def test_register_user(self):
+        user = create_new_user()
+        self.assertIsNotNone(user)
+        self.assertEqual(len(User.objects.all()), 1)
+        self.assertEqual(len(Individual.objects.all()), 1)
+        self.assertEqual(user.first_name, 'John')
+
+    def test_register_existing_user(self):
+        """
+        Register with a username that already exists.
+        This should throw an IntegrityError
+        """
+        user = create_new_user()
+        try:
+            user2 = create_new_user()
+        except(IntegrityError):
+            self.assertTrue(True)
+        else:
+            self.assertTrue(False)
+
     def test_login_unknown_user(self):
-        #Login with an invalid user
-        self.assertEqual(1, 1)        
+        self.assertFalse(self.client.login(username='temporary', password='temporary'))
+
+    def test_login_bad_password(self):
+        create_new_user()
+        self.assertTrue(User.objects.all()[0].username, 'sampleuser')
+        self.assertFalse(self.client.login(username='sampleuser', password='badpassword'))
 
     def test_user_creation_and_login(self):
-        """
-        Create a user and authenticate him
-        """
-        self.assertEqual(1, 1)
+        create_new_user()
+        self.assertTrue(User.objects.all()[0].username, 'sampleuser')
+        self.assertTrue(self.client.login(username='sampleuser', password='mypassword'))
     
 class FormTests(TestCase):
     def test_registerform(self):
+        self.assertEqual(1, 1)
+    def test_registerform_existinguser(self):
         self.assertEqual(1, 1)
     def test_loginform(self):
         self.assertEqual(1, 1)

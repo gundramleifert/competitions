@@ -6,20 +6,27 @@
 from django.conf import settings
 from random import random
 from time import sleep
-from os import listdir
-from os.path import splitext, isdir
+from os import listdir, makedirs
+from os.path import splitext, isdir, join
+from shutil import copyfile, rmtree
 from subprocess import PIPE, Popen
+from uuid import uuid4
 from json import dumps
 import re
+import tarfile
 
+temporary_folder = '/tmp/'
 
-def cmdline(command):
+def cmdline(command, *args, **kwargs):
     # http://stackoverflow.com/questions/3503879/assign-output-of-os-system-to-a-variable-and-prevent-it-from-being-displayed-on    
     # http://stackoverflow.com/questions/17615414/how-to-convert-binary-string-to-normal-string-in-python3 
+    # http://stackoverflow.com/questions/13744473/command-line-execution-in-different-folder
+    cwd = kwargs.pop('cwd', None)
     process = Popen(
         args=command,
         stdout=PIPE,
-        shell=True
+        shell=True,
+        cwd=cwd,
     )
     res = process.communicate()[0]
     return res.decode('utf-8')
@@ -96,5 +103,54 @@ def icfhr14_kws_tool(*args, **kwargs):
         'ndcg-binary':      r.group(5),
         'ndcg':             r.group(6),
         'pr-curve':         dumps([r.group(7), r.group(8), r.group(9), r.group(10), r.group(11), r.group(12), r.group(13), r.group(14), r.group(15), r.group(16), r.group(17)])
+    }
+    return result
+
+def transkribusBaseLineMetricTool(*args, **kwargs):
+    executable_folder = '{}/competitions/executables/TranskribusBaseLineMetricTool'.format(settings.BASE_DIR)    
+    #resultdata = kwargs.pop('resultdata', 'reco.lst')
+    resultdata = kwargs.pop('resultdata', executable_folder)
+    #privatedata = kwargs.pop('privatedata', 'truth.lst')
+    privatedata = kwargs.pop('privatedata', executable_folder)
+
+    executable_jar = 'baselineTool.jar'
+    if(isdir(privatedata)):
+        print(resultdata)
+        print(privatedata)
+        #This is the non-test scenario
+        #Hence we have to create a temporary folder and copy everything there
+        newfolder = '{}{}/'.format(temporary_folder, uuid4().hex)
+        makedirs(newfolder)
+        if(isdir(resultdata)):
+            for filename in listdir(resultdata):
+                full_filename = join(resultdata, filename)
+                target_filename = join(newfolder, filename)
+                copyfile(full_filename, target_filename)
+        else:
+            #If it is a file, it must be a tarball, or else raise an error 
+            tar = tarfile.open(resultdata)
+            tar.extractall(newfolder)
+            tar.close()
+        for filename in listdir(privatedata):
+            full_filename = join(privatedata, filename)
+            target_filename = join(newfolder, filename)
+            copyfile(full_filename, target_filename)
+        copyfile(join(executable_folder, executable_jar), join(newfolder, executable_jar))
+        executable_folder = newfolder
+        resultdata = '{}reco.lst'.format(newfolder)
+        privatedata = '{}truth.lst'.format(newfolder)
+   
+    executable = 'java -jar {}'.format(executable_jar)
+    commandline = '{} {} {}'.format(executable, privatedata, resultdata)
+    command_output = cmdline(commandline, cwd=executable_folder)
+
+    rmtree(newfolder)
+    print(command_output)
+    rgx = r'Avg \(over Pages\) Avg Precision: ([\d\.]+)\nAvg \(over Pages\) Avg Recall: ([\d\.]+)\nAvg \(over Pages\) Avg F-Measure: ([\d\.]+)'
+    r = re.search(rgx, command_output)     
+    result = {
+        'bl-avg-precision': r.group(1),
+        'bl-avg-recall':    r.group(2),
+        'bl-avg-fmeasure':  r.group(3),
     }
     return result
