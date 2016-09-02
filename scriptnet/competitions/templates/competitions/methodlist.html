@@ -1,0 +1,42 @@
+{% extends "competitions/competition.html" %}
+{% load staticfiles %}
+{% load i18n %}
+{% load bootstrap3 %}
+{% load django_tables2 %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="{% static 'paleblue/css/screen.css' %}" />
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+
+{% if table.rows %}
+    <form action="" method="post">
+    {% csrf_token %} 
+    {% render_table table %}    
+    {% buttons %}
+    <div class="row">
+    <div class="col-lg-4">
+    <button class="btn btn-default" type="submit" name="publicize">{% trans "Publicize" %}</button>        
+    </div>    
+    <div class="col-lg-4">
+    <button class="btn btn-default" type="submit" name="privatize">{% trans "Privatize" %}</button>
+    </div>    
+    <div class="col-lg-4">
+    <button class="btn btn-default" type="submit" name="delete">{% trans "Delete" %}</button>        
+    </div>    
+    </div>
+    {% endbuttons %}        
+    </form>
+{% else %}
+    <p>{% trans "You have not submitted any methods yet!" %}!</p>
+{% endif %}
+
+{% endblock %}
