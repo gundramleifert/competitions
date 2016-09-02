@@ -12,7 +12,7 @@ from .forms import LoginForm, RegisterForm, NEW_AFFILIATION_ID
 from .forms import SubmitForm
 from .models import Affiliation, Individual, Competition, Track, Subtrack
 from .models import Submission, SubmissionStatus
-from .tables import SubmissionTable, ScalarscoreTable, expandedScalarscoreTable
+from .tables import SubmissionTable, ScalarscoreTable, expandedScalarscoreTable, ManipulateMethodsTable
 from . import evaluators
 
 import threading
@@ -258,7 +258,7 @@ def methodlist(request, competition_id):
             print('Privatize pushed')
         elif 'delete' in request.POST:
             for s in selected_objects:
-                messages.add_message(request, messages.SUCCESS, _('Submission {} has been deleted.').format(s))
+                messages.add_message(request, messages.SUCCESS, _('Submission {} has been deleted.').format(s))                
                 s.delete()
     #myself = request.user.individual
     mymethods = Submission.objects.filter(submitter__user=request.user)
@@ -268,3 +268,4 @@ def methodlist(request, competition_id):
         'table': table,
     }
     return render(request, 'competitions/methodlist.html', context)
+    
